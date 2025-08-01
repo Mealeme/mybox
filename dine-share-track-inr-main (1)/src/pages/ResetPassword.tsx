@@ -13,9 +13,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
-import { AlertCircle, Moon, Sun } from 'lucide-react';
+import { AlertCircle, Moon, Sun, ArrowLeft } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useSettings } from '@/lib/SettingsContext';
+import { OTPInput } from '@/components/ui/otp-input';
 
 const ResetPassword = () => {
   const { resetPassword, confirmPasswordReset } = useAuth();
@@ -41,8 +42,8 @@ const ResetPassword = () => {
     
     if (!username) {
       setErrorMessage('Please enter your username or email');
-          return;
-        }
+      return;
+    }
         
     try {
       setIsSubmitting(true);
@@ -55,8 +56,8 @@ const ResetPassword = () => {
       } else {
         setResetRequested(true);
         toast({
-          title: "Code sent",
-          description: "Check your email for the verification code",
+          title: "Verification code sent",
+          description: "Check your email for the 6-digit verification code",
         });
       }
     } catch (error) {
@@ -72,6 +73,11 @@ const ResetPassword = () => {
     
     if (!code) {
       setErrorMessage('Please enter the verification code');
+      return;
+    }
+    
+    if (code.length < 6) {
+      setErrorMessage('Please enter the complete 6-digit verification code');
       return;
     }
     
@@ -98,7 +104,7 @@ const ResetPassword = () => {
       
       if (result.error) {
         setErrorMessage(result.error.message);
-        } else {
+      } else {
         toast({
           title: "Password reset successful",
           description: "Your password has been updated. You can now sign in with your new password.",
@@ -116,8 +122,16 @@ const ResetPassword = () => {
       setIsSubmitting(false);
     }
   };
+
+  const handleBackToRequest = () => {
+    setResetRequested(false);
+    setCode('');
+    setPassword('');
+    setConfirmPassword('');
+    setErrorMessage('');
+  };
   
-    return (
+  return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900 p-4">
       {/* Theme toggle button (fixed position) */}
       <div className="fixed top-4 right-4 z-50">
@@ -140,8 +154,8 @@ const ResetPassword = () => {
           <CardTitle className="dark:text-gray-100">Reset Password</CardTitle>
           <CardDescription className="dark:text-gray-300">
             {resetRequested 
-              ? "Enter the verification code sent to your email and create a new password" 
-              : "Request a password reset link to your email"
+              ? "Enter the 6-digit verification code sent to your email and create a new password" 
+              : "Request a password reset code to your email"
             }
           </CardDescription>
         </CardHeader>
@@ -175,22 +189,22 @@ const ResetPassword = () => {
                 className="w-full dark:text-gray-100" 
                 disabled={isSubmitting}
               >
-                {isSubmitting ? "Sending..." : "Send Reset Code"}
+                {isSubmitting ? "Sending..." : "Send Verification Code"}
               </Button>
             </form>
           ) : (
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="code" className="dark:text-gray-200">Verification Code</Label>
-                <Input
-                  id="code"
-                  type="text"
+                <Label className="dark:text-gray-200">Verification Code</Label>
+                <OTPInput
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="Enter verification code"
-                  required
-                  className="dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                  onChange={setCode}
+                  length={6}
+                  disabled={isSubmitting}
                 />
+                <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                  Enter the 6-digit code sent to your email
+                </p>
               </div>
               
               <div className="space-y-2">
@@ -225,6 +239,17 @@ const ResetPassword = () => {
                 disabled={isSubmitting}
               >
                 {isSubmitting ? "Resetting..." : "Reset Password"}
+              </Button>
+
+              <Button 
+                type="button"
+                variant="outline"
+                onClick={handleBackToRequest}
+                className="w-full dark:text-gray-100"
+                disabled={isSubmitting}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Request Code
               </Button>
             </form>
           )}
