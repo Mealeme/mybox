@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { UserProfile } from '@/data/types';
 import { useAuth } from '@/components/auth/AmplifyAuthProvider';
 import { motion } from 'framer-motion';
+import { ProfileManager, ExtendedUserProfile } from '@/lib/profileManager';
 
 // Import our component files
 import NavbarBrand from './navigation/NavbarBrand';
@@ -21,8 +21,8 @@ const AVATAR_UPDATED_EVENT = 'avatar_updated';
 
 const Navbar: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
-  const [darkMode, setDarkMode] = useLocalStorage('darkMode', false);
-  const [profile, setProfile] = useLocalStorage<UserProfile | null>('user-profile', null);
+  const [darkMode, setDarkMode] = useState(false);
+  const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
   const { user, signOut } = useAuth();
   const userEmail = user?.email || '';
   
@@ -47,34 +47,29 @@ const Navbar: React.FC = () => {
     };
   }, []);
   
-  // Force reload of profile data on navigation and when user changes
+  // Load profile data when user changes
   useEffect(() => {
-    if (!userEmail) return;
-    
-    // Read user-specific profile if available
-    const userSpecificKey = `user-profile-${userEmail}`;
-    const storedUserProfile = localStorage.getItem(userSpecificKey);
-    
-    if (storedUserProfile) {
-      try {
-        const parsedProfile = JSON.parse(storedUserProfile);
-        setProfile(parsedProfile);
-      } catch (e) {
-        console.error("Failed to parse stored user profile", e);
-      }
-    } else {
-      // Fallback to general profile storage
-      const storedProfile = localStorage.getItem('user-profile');
-      if (storedProfile) {
-        try {
-          const parsedProfile = JSON.parse(storedProfile);
-          setProfile(parsedProfile);
-        } catch (e) {
-          console.error("Failed to parse stored profile", e);
-        }
-      }
+    if (!userEmail) {
+      setProfile(null);
+      return;
     }
-  }, [userEmail, setProfile, avatarKey]);
+    
+    try {
+      const userProfile = ProfileManager.getOrCreateProfile(userEmail);
+      setProfile(userProfile);
+    } catch (error) {
+      console.error('Error loading profile in navbar:', error);
+      setProfile(null);
+    }
+  }, [userEmail, avatarKey]);
+  
+  // Load dark mode preference
+  useEffect(() => {
+    const storedDarkMode = localStorage.getItem('darkMode');
+    if (storedDarkMode) {
+      setDarkMode(JSON.parse(storedDarkMode));
+    }
+  }, []);
   
   useEffect(() => {
     const handleScroll = () => {
@@ -90,6 +85,9 @@ const Navbar: React.FC = () => {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    
+    // Save dark mode preference
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
   }, [darkMode]);
   
   const toggleMobileSearch = () => {

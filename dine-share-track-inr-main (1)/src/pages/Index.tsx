@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/components/auth/AmplifyAuthProvider';
 import { Button } from '@/components/ui/button';
 import { 
@@ -17,10 +17,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { motion } from 'framer-motion';
 import { ArrowRight, Check, ChevronRight, CloudCog, CreditCard, Moon, ReceiptText, Sun, UserCircle2, WalletCards, Eye, EyeOff } from 'lucide-react';
 import { useSettings } from '@/lib/SettingsContext';
-import { useNavigate } from 'react-router-dom';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const Index = () => {
-  const { isAuthenticated, isLoading, signInWithEmail, signUpWithEmail, resetPassword } = useAuth();
+  const { isAuthenticated, isLoading, signInWithEmail, signUpWithEmail } = useAuth();
   const { toast } = useToast();
   const { settings, updateSettings } = useSettings();
   const navigate = useNavigate();
@@ -30,14 +30,10 @@ const Index = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [resetPasswordEmail, setResetPasswordEmail] = useState('');
-  const [showResetPassword, setShowResetPassword] = useState(false);
-  
   // Password visibility states
   const [showPassword, setShowPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showResetPasswordField, setShowResetPasswordField] = useState(false);
 
   // Handle URL parameters for error messages
   useEffect(() => {
@@ -166,46 +162,7 @@ const Index = () => {
     }
   };
   
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!resetPasswordEmail) {
-      toast({
-        title: "Error",
-        description: "Please enter your email address",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    try {
-      setIsSubmitting(true);
-      const { error } = await resetPassword(resetPasswordEmail);
-      
-      if (error) {
-        toast({
-          title: "Password reset failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Password reset email sent",
-          description: "Check your email for the password reset link",
-        });
-        setShowResetPassword(false);
-        setResetPasswordEmail('');
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "An error occurred",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+
   
   // Animation variants
   const containerVariants = {
@@ -252,57 +209,6 @@ const Index = () => {
       
       {/* Left side - Auth form */}
       <div className="w-full md:w-1/2 p-8 md:p-12 flex items-center justify-center">
-        {showResetPassword ? (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-md"
-          >
-            <Card className="border-none shadow-lg dark:bg-gray-800 dark:border-gray-700">
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-2xl font-bold text-center dark:text-gray-100">Reset Password</CardTitle>
-                <CardDescription className="text-center dark:text-gray-300">
-                  Enter your email to receive a reset link
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleResetPassword} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="reset-email" className="dark:text-gray-200">Email</Label>
-                    <Input 
-                      id="reset-email" 
-                      type="email" 
-                      placeholder="your@email.com"
-                      value={resetPasswordEmail}
-                      onChange={(e) => setResetPasswordEmail(e.target.value)}
-                      disabled={isSubmitting}
-                      className="h-11 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-                    />
-                  </div>
-                  
-                  <Button 
-                    type="submit" 
-                    className="w-full bg-gradient-to-r from-primary to-primary/90 h-11 mt-2 dark:text-gray-100" 
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? "Sending..." : "Send Reset Link"}
-                  </Button>
-                </form>
-              </CardContent>
-              <CardFooter>
-                <Button 
-                  type="button"
-                  variant="ghost" 
-                  className="w-full dark:text-gray-300 dark:hover:bg-gray-700" 
-                  onClick={() => setShowResetPassword(false)}
-                  disabled={isSubmitting}
-                >
-                  Back to Sign In
-                </Button>
-              </CardFooter>
-            </Card>
-          </motion.div>
-        ) : (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -348,7 +254,7 @@ const Index = () => {
                           <Button 
                             variant="link" 
                             className="p-0 h-auto text-xs dark:text-primary"
-                            onClick={() => setShowResetPassword(true)}
+                            onClick={() => navigate('/reset-password')}
                             type="button"
                             disabled={isSubmitting}
                           >
@@ -466,7 +372,6 @@ const Index = () => {
               </CardContent>
             </Card>
           </motion.div>
-        )}
       </div>
       
       {/* Right side - Features */}

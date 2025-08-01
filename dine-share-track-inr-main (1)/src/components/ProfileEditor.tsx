@@ -1,5 +1,4 @@
-import React, { useState, useRef } from 'react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,22 +32,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from '@/components/auth/AmplifyAuthProvider';
 import { Separator } from '@/components/ui/separator';
-
-const defaultProfile: UserProfile = {
-  id: uuidv4(),
-  name: 'User',
-  email: '',
-  phone: '',
-};
+import { ProfileManager, ExtendedUserProfile } from '@/lib/profileManager';
 
 const ProfileEditor: React.FC = () => {
-  const [profile, setProfile] = useLocalStorage<UserProfile>('user-profile', defaultProfile);
+  const { user, signOut } = useAuth();
   const { toast } = useToast();
-  const { signOut } = useAuth();
+  const userEmail = user?.email || '';
   
-  const [name, setName] = useState<string>(profile.name);
-  const [email, setEmail] = useState<string>(profile.email);
-  const [phone, setPhone] = useState<string>(profile.phone);
+  // State for profile data
+  const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
+  const [name, setName] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [phone, setPhone] = useState<string>('');
+  const [avatar, setAvatar] = useState<string | undefined>(undefined);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -61,18 +58,51 @@ const ProfileEditor: React.FC = () => {
   // For delete account confirmation
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
+  // Load profile data when component mounts
+  useEffect(() => {
+    if (!userEmail) return;
+    
+    try {
+      const userProfile = ProfileManager.getOrCreateProfile(userEmail);
+      setProfile(userProfile);
+      setName(userProfile.name);
+      setEmail(userProfile.email);
+      setPhone(userProfile.phone);
+      
+      // Load avatar separately
+      const storedAvatar = ProfileManager.loadAvatar(userEmail);
+      if (storedAvatar) {
+        setAvatar(storedAvatar);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+      toast({
+        title: "Error loading profile",
+        description: "There was an error loading your profile data.",
+        variant: "destructive"
+      });
+    }
+  }, [userEmail, toast]);
   
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userEmail || !profile) return;
+    
     setIsSaving(true);
     
-    setTimeout(() => {
-      setProfile({
+    try {
+      const updatedProfile = {
         ...profile,
         name,
-        email,
+        email: userEmail, // Always use current user's email
         phone,
-      });
+        avatar,
+        lastUpdated: Date.now()
+      };
+      
+      ProfileManager.saveProfile(userEmail, updatedProfile);
+      setProfile(updatedProfile);
       
       setIsSaving(false);
       setIsEditing(false);
@@ -81,7 +111,16 @@ const ProfileEditor: React.FC = () => {
         title: "Profile Updated",
         description: "Your profile has been updated successfully",
       });
-    }, 600);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      setIsSaving(false);
+      
+      toast({
+        title: "Error saving profile",
+        description: "There was an error saving your profile changes.",
+        variant: "destructive"
+      });
+    }
   };
   
   const handlePasswordChange = (e: React.FormEvent) => {
@@ -127,10 +166,7 @@ const ProfileEditor: React.FC = () => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
-      setProfile({
-        ...profile,
-        avatar: result,
-      });
+      setAvatar(result);
       toast({
         title: "Avatar Updated",
         description: "Your profile picture has been updated",
@@ -153,7 +189,7 @@ const ProfileEditor: React.FC = () => {
     setIsSaving(true);
     setTimeout(() => {
       // Clear user data
-      localStorage.removeItem('user-profile');
+      ProfileManager.deleteProfile(userEmail);
       
       toast({
         title: "Account Deleted",
@@ -194,9 +230,9 @@ const ProfileEditor: React.FC = () => {
             <div className="absolute -bottom-16 left-1/2 transform -translate-x-1/2">
               <div className="relative group">
                 <Avatar className="w-32 h-32 border-4 border-white shadow-xl transition-transform hover:scale-105">
-                  <AvatarImage src={profile.avatar} className="object-cover" />
+                  <AvatarImage src={avatar || profile?.avatar} className="object-cover" />
                   <AvatarFallback className="bg-food-green text-white text-2xl">
-                    {profile.name.charAt(0)}
+                    {profile?.name.charAt(0) || 'U'}
                   </AvatarFallback>
                 </Avatar>
                 <button 
@@ -415,7 +451,7 @@ const ProfileEditor: React.FC = () => {
                 <div className="flex items-center">
                   <User className="h-4 w-4 mr-2 text-slate-500" />
                   <span className="text-sm text-slate-600">User ID:</span>
-                  <span className="ml-2 font-medium">{profile.id.slice(0, 8)}...</span>
+                  <span className="ml-2 font-medium">{profile?.id.slice(0, 8)}...</span>
                 </div>
               </div>
             </div>

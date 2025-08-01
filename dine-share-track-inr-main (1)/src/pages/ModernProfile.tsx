@@ -66,31 +66,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-// Define the user profile type
-interface UserProfile {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  dob: string;
-  gender: string;
-  avatar?: string;
-  bio?: string;
-  lastUpdated?: number; // Adding timestamp for tracking updates
-  location?: string;
-  website?: string;
-  occupation?: string;
-  education?: string;
-  interests?: string[];
-  socialLinks?: {
-    twitter?: string;
-    facebook?: string;
-    instagram?: string;
-    linkedin?: string;
-    github?: string;
-  };
-}
+import { ProfileManager, ExtendedUserProfile } from '@/lib/profileManager';
 
 // Gender options
 const genderOptions = [
@@ -101,23 +77,6 @@ const genderOptions = [
   { value: 'Other', label: 'Other' }
 ];
 
-// Create default profile
-const createDefaultProfile = (email?: string): UserProfile => ({
-  id: uuidv4(),
-  name: 'User',
-  email: email || '',
-  phone: '',
-  dob: '',
-  gender: '',
-  bio: '',
-  location: '',
-  website: '',
-  occupation: '',
-  education: '',
-  interests: [],
-  socialLinks: {}
-});
-
 // Create a custom event for avatar updates
 const AVATAR_UPDATED_EVENT = 'avatar_updated';
 
@@ -126,16 +85,14 @@ const ModernProfile: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const userEmail = user?.email || '';
-  const avatarStorageKey = `user-avatar-${userEmail}`;
-  const profileStorageKey = `user-profile-${userEmail}`;
   
   // Refs for file inputs
   const avatarInputRef = useRef<HTMLInputElement>(null);
   
   // State for profile data
-  const [profile, setProfile] = useState<UserProfile>(createDefaultProfile(userEmail));
+  const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedProfile, setEditedProfile] = useState<UserProfile>(profile);
+  const [editedProfile, setEditedProfile] = useState<ExtendedUserProfile | null>(null);
   
   // Avatar state
   const [avatar, setAvatar] = useState<string | undefined>(undefined);
@@ -155,52 +112,31 @@ const ModernProfile: React.FC = () => {
     if (!userEmail) return;
     
     try {
-      // Load profile data
-      const storedProfile = localStorage.getItem(profileStorageKey);
+      // Use ProfileManager to load or create profile
+      const userProfile = ProfileManager.getOrCreateProfile(userEmail);
+      setProfile(userProfile);
+      setEditedProfile(userProfile);
       
       // Load avatar separately
-      const storedAvatar = localStorage.getItem(avatarStorageKey);
+      const storedAvatar = ProfileManager.loadAvatar(userEmail);
       if (storedAvatar) {
         setAvatar(storedAvatar);
       }
       
-      if (storedProfile) {
-        const parsedProfile = JSON.parse(storedProfile) as UserProfile;
-        
-        // Ensure email matches current user
-        if (parsedProfile.email !== userEmail) {
-          parsedProfile.email = userEmail;
-          localStorage.setItem(profileStorageKey, JSON.stringify(parsedProfile));
+      // If there's a date stored, set it
+      if (userProfile.dob) {
+        const dobDate = new Date(userProfile.dob);
+        if (!isNaN(dobDate.getTime())) {
+          setDate(dobDate);
         }
-        
-        // If there's stored avatar, use that instead of what might be in the profile
-        if (storedAvatar) {
-          parsedProfile.avatar = storedAvatar;
-        }
-        
-        setProfile(parsedProfile);
-        setEditedProfile(parsedProfile);
-        
-        // If there's a date stored, set it
-        if (parsedProfile.dob) {
-          const dobDate = new Date(parsedProfile.dob);
-          if (!isNaN(dobDate.getTime())) {
-            setDate(dobDate);
-          }
-        }
-      } else {
-        // Create new profile if none exists
-        const newProfile = createDefaultProfile(userEmail);
-        localStorage.setItem(profileStorageKey, JSON.stringify(newProfile));
-        setProfile(newProfile);
-        setEditedProfile(newProfile);
+      }
+      
+      // Set interests
+      if (userProfile.interests) {
+        setInterests(userProfile.interests);
       }
     } catch (error) {
       console.error("Error loading profile:", error);
-      const newProfile = createDefaultProfile(userEmail);
-      localStorage.setItem(profileStorageKey, JSON.stringify(newProfile));
-      setProfile(newProfile);
-      setEditedProfile(newProfile);
       
       toast({
         title: "Error loading profile",
@@ -208,10 +144,12 @@ const ModernProfile: React.FC = () => {
         variant: "destructive"
       });
     }
-  }, [userEmail, profileStorageKey, avatarStorageKey, toast]);
+  }, [userEmail, toast]);
 
   // Save profile changes
   const saveProfile = () => {
+    if (!userEmail || !editedProfile) return;
+    
     try {
       // Update timestamp
       const updatedProfile = {
@@ -219,12 +157,13 @@ const ModernProfile: React.FC = () => {
         lastUpdated: Date.now()
       };
       
-      localStorage.setItem(profileStorageKey, JSON.stringify(updatedProfile));
+      // Save profile using ProfileManager
+      ProfileManager.saveProfile(userEmail, updatedProfile);
       setProfile(updatedProfile);
       setIsEditing(false);
       
       // Dispatch event to notify other components
-      if (updatedProfile.avatar !== profile.avatar) {
+      if (updatedProfile.avatar !== profile?.avatar) {
         const event = new CustomEvent(AVATAR_UPDATED_EVENT, { 
           detail: { 
             avatar: updatedProfile.avatar,
@@ -251,14 +190,8 @@ const ModernProfile: React.FC = () => {
 
   // Function to update avatar everywhere
   const updateAvatar = (avatarData: string | undefined) => {
-    // Update in localStorage separately
-    if (avatarData) {
-      localStorage.setItem(avatarStorageKey, avatarData);
-    } else {
-      localStorage.removeItem(avatarStorageKey);
-    }
-    
-    // Update local state
+    if (!userEmail) return;
+    ProfileManager.saveAvatar(userEmail, avatarData);
     setAvatar(avatarData);
     setEditedProfile(prev => ({...prev, avatar: avatarData}));
     
@@ -349,7 +282,7 @@ const ModernProfile: React.FC = () => {
     setDate(selectedDate);
     if (selectedDate) {
       setEditedProfile({
-        ...editedProfile,
+        ...editedProfile!,
         dob: selectedDate.toISOString().split('T')[0]
       });
     }
@@ -373,7 +306,7 @@ const ModernProfile: React.FC = () => {
 
   // Generate avatar fallback from name
   const getNameInitial = () => {
-    return profile.name.charAt(0).toUpperCase() || userEmail.charAt(0).toUpperCase() || 'U';
+    return profile?.name.charAt(0).toUpperCase() || userEmail.charAt(0).toUpperCase() || 'U';
   };
 
   return (
@@ -405,8 +338,8 @@ const ModernProfile: React.FC = () => {
                         </div>
                       )}
                       <AvatarImage 
-                        src={editedProfile.avatar} 
-                        alt={profile.name}
+                        src={editedProfile?.avatar} 
+                        alt={profile?.name || ''}
                         className="object-cover w-full h-full z-0"
                       />
                       <AvatarFallback className="text-5xl bg-gradient-to-br from-food-orange via-orange-500 to-food-green text-white">
@@ -431,7 +364,7 @@ const ModernProfile: React.FC = () => {
                         >
                           <Camera className="w-4 h-4" />
                         </Button>
-                        {editedProfile.avatar && (
+                        {editedProfile?.avatar && (
                           <Button 
                             size="icon" 
                             variant="outline" 
@@ -449,23 +382,23 @@ const ModernProfile: React.FC = () => {
                 <div className="flex-1 flex flex-col items-center sm:items-start space-y-1 pt-2 sm:pt-0">
                   {isEditing ? (
                     <Input 
-                      value={editedProfile.name}
-                      onChange={(e) => setEditedProfile({...editedProfile, name: e.target.value})}
+                      value={editedProfile?.name}
+                      onChange={(e) => setEditedProfile({...editedProfile!, name: e.target.value})}
                       className="text-2xl md:text-3xl font-bold bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-sm"
                       placeholder="Your name"
                     />
                   ) : (
-                    <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{profile.name}</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{profile?.name}</h2>
                   )}
                   
                   <div className="flex items-center text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    {profile.location && (
+                    {profile?.location && (
                       <div className="flex items-center mr-4">
                         <MapPin className="w-4 h-4 mr-1 text-gray-500 dark:text-gray-400" />
                         <span>{profile.location}</span>
                       </div>
                     )}
-                    {profile.occupation && (
+                    {profile?.occupation && (
                       <div className="flex items-center">
                         <Briefcase className="w-4 h-4 mr-1 text-gray-500 dark:text-gray-400" />
                         <span>{profile.occupation}</span>
@@ -473,7 +406,7 @@ const ModernProfile: React.FC = () => {
                     )}
                   </div>
                   
-                  {profile.interests && profile.interests.length > 0 && (
+                  {profile?.interests && profile.interests.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2">
                       {profile.interests.slice(0, 3).map((interest, index) => (
                         <span key={index} className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">
@@ -563,7 +496,7 @@ const ModernProfile: React.FC = () => {
                             </div>
                             <div className="flex-1">
                               <Label className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Email</Label>
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">{profile.email}</p>
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 break-all">{profile?.email}</p>
                             </div>
                           </div>
                         </div>
@@ -577,14 +510,14 @@ const ModernProfile: React.FC = () => {
                               <Label className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Phone</Label>
                               {isEditing ? (
                                 <Input 
-                                  value={editedProfile.phone}
-                                  onChange={(e) => setEditedProfile({...editedProfile, phone: e.target.value})}
+                                  value={editedProfile?.phone || ''}
+                                  onChange={(e) => setEditedProfile({...editedProfile!, phone: e.target.value})}
                                   placeholder="Your phone number"
                                   className="border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500"
                                 />
                               ) : (
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                  {profile.phone || 
+                                  {profile?.phone || 
                                     <span className="text-gray-400 dark:text-gray-500 italic text-xs">Not provided</span>
                                   }
                                 </p>
@@ -622,7 +555,7 @@ const ModernProfile: React.FC = () => {
                                 </Popover>
                               ) : (
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                  {profile.dob ? format(new Date(profile.dob), 'PPP') : 
+                                  {profile?.dob ? format(new Date(profile.dob), 'PPP') : 
                                     <span className="text-gray-400 dark:text-gray-500 italic text-xs">Not provided</span>
                                   }
                                 </p>
@@ -640,8 +573,8 @@ const ModernProfile: React.FC = () => {
                               <Label className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Gender</Label>
                               {isEditing ? (
                                 <Select 
-                                  value={editedProfile.gender} 
-                                  onValueChange={(value) => setEditedProfile({...editedProfile, gender: value})}
+                                  value={editedProfile?.gender} 
+                                  onValueChange={(value) => setEditedProfile({...editedProfile!, gender: value})}
                                 >
                                   <SelectTrigger className="border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500">
                                     <SelectValue placeholder="Select gender" />
@@ -656,7 +589,7 @@ const ModernProfile: React.FC = () => {
                                 </Select>
                               ) : (
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                  {profile.gender || 
+                                  {profile?.gender || 
                                     <span className="text-gray-400 dark:text-gray-500 italic text-xs">Not provided</span>
                                   }
                                 </p>
@@ -674,14 +607,14 @@ const ModernProfile: React.FC = () => {
                               <Label className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Location</Label>
                               {isEditing ? (
                                 <Input 
-                                  value={editedProfile.location || ''}
-                                  onChange={(e) => setEditedProfile({...editedProfile, location: e.target.value})}
+                                  value={editedProfile?.location || ''}
+                                  onChange={(e) => setEditedProfile({...editedProfile!, location: e.target.value})}
                                   placeholder="Your location"
                                   className="border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500"
                                 />
                               ) : (
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                  {profile.location || 
+                                  {profile?.location || 
                                     <span className="text-gray-400 dark:text-gray-500 italic text-xs">Not provided</span>
                                   }
                                 </p>
@@ -699,13 +632,13 @@ const ModernProfile: React.FC = () => {
                               <Label className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Website</Label>
                               {isEditing ? (
                                 <Input 
-                                  value={editedProfile.website || ''}
-                                  onChange={(e) => setEditedProfile({...editedProfile, website: e.target.value})}
+                                  value={editedProfile?.website || ''}
+                                  onChange={(e) => setEditedProfile({...editedProfile!, website: e.target.value})}
                                   placeholder="Your website URL"
                                   className="border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-purple-500"
                                 />
                               ) : (
-                                profile.website ? (
+                                profile?.website ? (
                                   <a 
                                     href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`} 
                                     target="_blank" 
@@ -753,14 +686,14 @@ const ModernProfile: React.FC = () => {
                               <Label className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Occupation</Label>
                               {isEditing ? (
                                 <Input 
-                                  value={editedProfile.occupation || ''}
-                                  onChange={(e) => setEditedProfile({...editedProfile, occupation: e.target.value})}
+                                  value={editedProfile?.occupation || ''}
+                                  onChange={(e) => setEditedProfile({...editedProfile!, occupation: e.target.value})}
                                   placeholder="Your occupation"
                                   className="border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-purple-500"
                                 />
                               ) : (
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                  {profile.occupation || 
+                                  {profile?.occupation || 
                                     <span className="text-gray-400 dark:text-gray-500 italic text-xs">Not provided</span>
                                   }
                                 </p>
@@ -778,14 +711,14 @@ const ModernProfile: React.FC = () => {
                               <Label className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Education</Label>
                               {isEditing ? (
                                 <Input 
-                                  value={editedProfile.education || ''}
-                                  onChange={(e) => setEditedProfile({...editedProfile, education: e.target.value})}
+                                  value={editedProfile?.education || ''}
+                                  onChange={(e) => setEditedProfile({...editedProfile!, education: e.target.value})}
                                   placeholder="Your education"
                                   className="border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-purple-500"
                                 />
                               ) : (
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                  {profile.education || 
+                                  {profile?.education || 
                                     <span className="text-gray-400 dark:text-gray-500 italic text-xs">Not provided</span>
                                   }
                                 </p>
@@ -817,14 +750,14 @@ const ModernProfile: React.FC = () => {
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <Label htmlFor="bio" className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">Bio</Label>
-                          <span className="text-xs text-gray-400">{editedProfile.bio?.length || 0} characters</span>
+                          <span className="text-xs text-gray-400">{editedProfile?.bio?.length || 0} characters</span>
                         </div>
                         <div className="relative group">
                           <textarea
                             id="bio"
                             className="w-full min-h-[250px] p-4 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent bg-white dark:bg-gray-800 resize-none transition-all"
-                            value={editedProfile.bio || ''}
-                            onChange={(e) => setEditedProfile({...editedProfile, bio: e.target.value})}
+                            value={editedProfile?.bio || ''}
+                            onChange={(e) => setEditedProfile({...editedProfile!, bio: e.target.value})}
                             placeholder="Tell us about yourself, your background, interests, and what you'd like others to know about you..."
                           />
                           <div className="absolute inset-0 pointer-events-none border border-cyan-500 rounded-lg opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
@@ -852,7 +785,7 @@ const ModernProfile: React.FC = () => {
                           )}
                         </div>
                         
-                        {profile.bio ? (
+                        {profile?.bio ? (
                           <div className="space-y-2">
                             <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{profile.bio}</p>
                           </div>
@@ -907,7 +840,7 @@ const ModernProfile: React.FC = () => {
                           <div className="flex-1">
                             <Label className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Your Interests</Label>
                             <div className="flex flex-wrap gap-2 mb-3">
-                              {editedProfile.interests?.map((interest, index) => (
+                              {editedProfile?.interests?.map((interest, index) => (
                                 <div key={index} className="bg-gradient-to-r from-pink-500/10 to-rose-500/10 text-pink-700 dark:text-pink-300 rounded-full px-3 py-1 text-sm flex items-center border border-pink-200 dark:border-pink-900/30 shadow-sm">
                                   {interest}
                                   <Button
@@ -915,9 +848,9 @@ const ModernProfile: React.FC = () => {
                                     size="icon"
                                     className="h-5 w-5 ml-1 text-pink-400 hover:text-pink-700 dark:text-pink-400"
                                     onClick={() => {
-                                      const newInterests = [...(editedProfile.interests || [])];
+                                      const newInterests = [...(editedProfile?.interests || [])];
                                       newInterests.splice(index, 1);
-                                      setEditedProfile({...editedProfile, interests: newInterests});
+                                      setEditedProfile({...editedProfile!, interests: newInterests});
                                     }}
                                   >
                                     <X className="h-3 w-3" />
@@ -934,8 +867,8 @@ const ModernProfile: React.FC = () => {
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter' && newInterest.trim()) {
                                     e.preventDefault();
-                                    const newInterests = [...(editedProfile.interests || []), newInterest.trim()];
-                                    setEditedProfile({...editedProfile, interests: newInterests});
+                                    const newInterests = [...(editedProfile?.interests || []), newInterest.trim()];
+                                    setEditedProfile({...editedProfile!, interests: newInterests});
                                     setNewInterest('');
                                   }
                                 }}
@@ -945,8 +878,8 @@ const ModernProfile: React.FC = () => {
                                 className="border-pink-200 hover:border-pink-500 dark:border-pink-900 dark:hover:border-pink-700 hover:text-pink-700 dark:hover:text-pink-300 transition-colors"
                                 onClick={() => {
                                   if (newInterest.trim()) {
-                                    const newInterests = [...(editedProfile.interests || []), newInterest.trim()];
-                                    setEditedProfile({...editedProfile, interests: newInterests});
+                                    const newInterests = [...(editedProfile?.interests || []), newInterest.trim()];
+                                    setEditedProfile({...editedProfile!, interests: newInterests});
                                     setNewInterest('');
                                   }
                                 }}
@@ -962,7 +895,7 @@ const ModernProfile: React.FC = () => {
                       </div>
                     ) : (
                       <div className="bg-gradient-to-br from-pink-50/50 to-rose-50/50 dark:from-pink-900/20 dark:to-rose-900/20 p-6 rounded-xl min-h-[200px] border border-gray-100 dark:border-gray-800 relative group hover:border-pink-200 dark:hover:border-pink-900 transition-colors shadow-inner">
-                        {profile.interests && profile.interests.length > 0 ? (
+                        {profile?.interests && profile.interests.length > 0 ? (
                           <div>
                             <div className="flex flex-wrap gap-2 mb-3">
                               {profile.interests.map((interest, index) => (
@@ -1081,7 +1014,7 @@ const ModernProfile: React.FC = () => {
                           <div className="flex-1">
                             <Label className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1 block">Last Activity</Label>
                             <p className="text-sm text-gray-900 dark:text-gray-100 flex items-center">
-                              {profile.lastUpdated ? (
+                              {profile?.lastUpdated ? (
                                 <>
                                   <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                                   Profile last updated: {format(new Date(profile.lastUpdated), 'PPP')}
