@@ -1,0 +1,23 @@
+# Amplify
+amplify/team-provider-info.json
+**/amplify_outputs.json
+
+# Distribution and builds
+dist/
+build/
+
+# Node dependencies
+node_modules/
+
+# Local environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.idea/
+.vscode/
+
+# OS specific
+.DS_Store
+Thumbs.db 

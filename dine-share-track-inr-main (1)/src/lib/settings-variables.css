@@ -1,0 +1,67 @@
+:root {
+  /* Default accent color */
+  --accent-color: #2196F3;
+}
+
+/* These classes are applied by the SettingsContext */
+.dark {
+  --background: #121212;
+  --foreground: #ffffff;
+  --card-background: #1e1e1e;
+  --card-foreground: #f0f0f0;
+  --border: #2a2a2a;
+  --primary: var(--accent-color);
+  --muted: #2a2a2a;
+  --muted-foreground: #a0a0a0;
+  
+  color-scheme: dark;
+}
+
+/* Color schemes */
+[data-color-scheme="blue"] {
+  --accent-color: #2196F3;
+  --accent-foreground: #ffffff;
+  --primary: var(--accent-color);
+}
+
+[data-color-scheme="green"] {
+  --accent-color: #4CAF50;
+  --accent-foreground: #ffffff;
+  --primary: var(--accent-color);
+}
+
+[data-color-scheme="orange"] {
+  --accent-color: #FF7E45;
+  --accent-foreground: #ffffff;
+  --primary: var(--accent-color);
+}
+
+[data-color-scheme="purple"] {
+  --accent-color: #9C27B0;
+  --accent-foreground: #ffffff;
+  --primary: var(--accent-color);
+}
+
+/* Compact mode */
+[data-compact="true"] {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+}
+
+[data-compact="false"] {
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 1.5rem;
+  --space-4: 2rem;
+}
+
+/* Animation settings */
+[data-animation="true"] {
+  --transition-duration: 0.3s;
+}
+
+[data-animation="false"] {
+  --transition-duration: 0s;
+} 

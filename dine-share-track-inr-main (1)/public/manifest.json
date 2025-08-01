@@ -1,0 +1,22 @@
+
+{
+  "name": "MealSync",
+  "short_name": "MealSync",
+  "icons": [
+    {
+      "src": "/lovable-uploads/23d2f325-ae3d-408a-b27b-35027f5bcd82.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/lovable-uploads/23d2f325-ae3d-408a-b27b-35027f5bcd82.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#4CAF50",
+  "background_color": "#ffffff",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait"
+}

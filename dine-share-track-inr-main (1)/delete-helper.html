@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Expense Delete Helper</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+    }
+    tr:hover {
+      background-color: #f5f5f5;
+    }
+    button {
+      background-color: #ff4444;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #cc0000;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Expense Delete Helper</h1>
+  <p>This tool helps you directly manage expenses in your localStorage.</p>
+  
+  <div id="status"></div>
+  
+  <button onclick="loadExpenses()">Load Expenses</button>
+  <button onclick="clearTable()">Clear Table</button>
+  <button onclick="refreshPage()">Refresh Page</button>
+  
+  <table id="expenseTable">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Category</th>
+        <th>Description</th>
+        <th>Amount</th>
+        <th>Date</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="expenseList"></tbody>
+  </table>
+  
+  <script>
+    function showStatus(message, isError = false) {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = message;
+      statusEl.className = isError ? 'error' : 'success';
+    }
+    
+    function loadExpenses() {
+      try {
+        const data = localStorage.getItem('expenses');
+        if (!data) {
+          showStatus('No expenses found in localStorage', true);
+          return;
+        }
+        
+        const expenses = JSON.parse(data);
+        showStatus(`Loaded ${expenses.length} expenses`);
+        
+        const tbody = document.getElementById('expenseList');
+        tbody.innerHTML = '';
+        
+        expenses.forEach(expense => {
+          const row = document.createElement('tr');
+          
+          // ID cell with truncated ID
+          const idCell = document.createElement('td');
+          idCell.textContent = expense.id.substring(0, 8) + '...';
+          idCell.title = expense.id;
+          row.appendChild(idCell);
+          
+          // Category
+          const categoryCell = document.createElement('td');
+          categoryCell.textContent = expense.category;
+          row.appendChild(categoryCell);
+          
+          // Description
+          const descCell = document.createElement('td');
+          descCell.textContent = expense.description || 'No description';
+          row.appendChild(descCell);
+          
+          // Amount
+          const amountCell = document.createElement('td');
+          amountCell.textContent = '₹' + expense.amount.toLocaleString('en-IN');
+          row.appendChild(amountCell);
+          
+          // Date
+          const dateCell = document.createElement('td');
+          dateCell.textContent = new Date(expense.date).toLocaleDateString();
+          row.appendChild(dateCell);
+          
+          // Actions
+          const actionsCell = document.createElement('td');
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.onclick = () => deleteExpense(expense.id);
+          actionsCell.appendChild(deleteBtn);
+          row.appendChild(actionsCell);
+          
+          tbody.appendChild(row);
+        });
+      } catch (error) {
+        showStatus('Error loading expenses: ' + error, true);
+      }
+    }
+    
+    function deleteExpense(id) {
+      try {
+        // Get current data
+        const data = localStorage.getItem('expenses');
+        if (!data) return;
+        
+        // Parse to array
+        const expenses = JSON.parse(data);
+        
+        // Filter out the expense to delete
+        const updated = expenses.filter(exp => exp.id !== id);
+        
+        // Save back to localStorage
+        localStorage.setItem('expenses', JSON.stringify(updated));
+        
+        showStatus(`Expense deleted! Remaining: ${updated.length}`);
+        
+        // Reload the table
+        loadExpenses();
+      } catch (error) {
+        showStatus('Error deleting expense: ' + error, true);
+      }
+    }
+    
+    function clearTable() {
+      document.getElementById('expenseList').innerHTML = '';
+      showStatus('Table cleared');
+    }
+    
+    function refreshPage() {
+      window.location.reload();
+    }
+    
+    // Load expenses on page load
+    window.onload = loadExpenses;
+  </script>
+</body>
+</html> 
